@@ -1,0 +1,20 @@
+{
+  "project": "Tribuanálisis - Rentas empresariales",
+  "version": "1.0-demo",
+  "navigation": [
+    "Inicio",
+    "Empresas",
+    "Análisis de gastos",
+    "Comprobantes",
+    "Carga masiva Excel",
+    "Matrices empresariales",
+    "Historial de análisis",
+    "Guía y normativa",
+    "Perfil y créditos"
+  ],
+  "removed_sections": [
+    "Regímenes tributarios",
+    "Comparadores de regímenes"
+  ],
+  "run": "python app.py"
+}

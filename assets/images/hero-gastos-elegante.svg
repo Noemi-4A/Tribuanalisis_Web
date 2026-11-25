@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="1600" viewBox="0 0 3840 1600">
+<defs>
+ <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#f9f1e9"/><stop offset=".5" stop-color="#f0ded9"/><stop offset="1" stop-color="#d6e2df"/></linearGradient>
+ <linearGradient id="wine" x2="0" y2="1"><stop stop-color="#8b2446"/><stop offset="1" stop-color="#4c1830"/></linearGradient>
+ <linearGradient id="petrol" x2="1" y2="1"><stop stop-color="#1b6873"/><stop offset="1" stop-color="#0c344e"/></linearGradient>
+ <linearGradient id="gold" x2="1" y2="1"><stop stop-color="#e9c98f"/><stop offset="1" stop-color="#a77842"/></linearGradient>
+ <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur in="SourceAlpha" stdDeviation="24"/><feOffset dy="20"/><feComponentTransfer><feFuncA type="linear" slope=".2"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="3840" height="1600" fill="url(#bg)"/>
+<path d="M0 0H1300C900 450 1100 950 0 1250Z" fill="#741b38" opacity=".10"/>
+<path d="M2500 0H3840V1600H2950C3230 1120 2700 560 2500 0Z" fill="#176c73" opacity=".10"/>
+<path d="M0 1420C900 1190 1450 1670 2300 1380S3300 1220 3840 1400V1600H0Z" fill="#741b38" opacity=".09"/>
+<!-- soft window -->
+<rect x="2780" y="100" width="850" height="900" rx="34" fill="#fffaf4" opacity=".45"/>
+<path d="M3200 100V1000M2780 550H3630" stroke="#c5a9a0" stroke-width="22" opacity=".28"/>
+<!-- table -->
+<path d="M0 1170Q1200 1000 2400 1150T3840 1100V1600H0Z" fill="#e8d5c9"/>
+<path d="M0 1260Q1300 1110 2600 1250T3840 1200" fill="none" stroke="#c6a89a" stroke-width="10" opacity=".45"/>
+<!-- books -->
+<g filter="url(#sh)">
+ <g transform="translate(220 670) rotate(-3)"><rect width="1040" height="205" rx="20" fill="url(#wine)"/><rect x="20" y="18" width="1000" height="169" rx="12" fill="none" stroke="url(#gold)" stroke-width="7"/><path d="M95 0V205M970 0V205" stroke="#d9b67c" stroke-width="10"/><text x="540" y="125" text-anchor="middle" font-family="Georgia" font-size="66" fill="#f3d9a8">LEY DEL IMPUESTO A LA RENTA</text></g>
+ <g transform="translate(300 895) rotate(-1)"><rect width="1120" height="210" rx="20" fill="#641a35"/><rect x="20" y="18" width="1080" height="174" rx="12" fill="none" stroke="url(#gold)" stroke-width="7"/><path d="M95 0V210M1050 0V210" stroke="#d9b67c" stroke-width="10"/><text x="570" y="128" text-anchor="middle" font-family="Georgia" font-size="70" fill="#f3d9a8">GASTOS DEDUCIBLES</text></g>
+</g>
+<!-- balance -->
+<g transform="translate(2070 280)" fill="none" stroke="url(#gold)" stroke-width="25" stroke-linecap="round" stroke-linejoin="round" filter="url(#sh)">
+ <path d="M0 0V820M-350 190H350M0 0V-100"/>
+ <path d="M-320 190L-520 510M-320 190L-120 510M320 190L120 510M320 190L520 510" stroke-width="14"/>
+ <path d="M-570 510Q-320 650 -70 510M70 510Q320 650 570 510" stroke-width="20"/>
+ <path d="M-145 850H145M-95 815H95" stroke-width="25"/>
+ <ellipse cx="0" cy="870" rx="220" ry="30" fill="#c9a16b" stroke="none"/>
+ <circle cx="0" cy="-100" r="38" fill="#d8b67b"/>
+</g>
+<!-- papers -->
+<g transform="translate(2520 940) rotate(-7)" filter="url(#sh)">
+ <rect width="720" height="480" rx="24" fill="#fffdf8" stroke="#d8c6bb" stroke-width="9"/>
+ <text x="60" y="85" font-family="Georgia" font-size="42" fill="#741b38">MATRIZ DE EVALUACIÓN</text>
+ <path d="M60 130H660M60 200H660M60 270H660M60 340H660M60 410H660" stroke="#d9c8c0" stroke-width="8"/>
+ <path d="M220 130V450M430 130V450" stroke="#d9c8c0" stroke-width="8"/>
+ <rect x="60" y="145" width="130" height="38" rx="8" fill="#176c73" opacity=".8"/>
+ <rect x="245" y="215" width="160" height="34" rx="8" fill="#8d2446" opacity=".72"/>
+ <rect x="455" y="285" width="150" height="34" rx="8" fill="#b78345" opacity=".8"/>
+</g>
+<!-- calculator -->
+<g transform="translate(3240 770) rotate(9)" filter="url(#sh)">
+ <rect width="330" height="520" rx="38" fill="#d7d0c8" stroke="#a89b90" stroke-width="10"/>
+ <rect x="34" y="38" width="262" height="100" rx="12" fill="#dce7d9"/>
+ <text x="270" y="105" font-family="monospace" font-size="40" fill="#31574d" text-anchor="end">8,450</text>
+ <g fill="#655e60"><rect x="40" y="180" width="65" height="60" rx="10"/><rect x="132" y="180" width="65" height="60" rx="10"/><rect x="224" y="180" width="65" height="60" rx="10"/><rect x="40" y="270" width="65" height="60" rx="10"/><rect x="132" y="270" width="65" height="60" rx="10"/><rect x="224" y="270" width="65" height="60" rx="10"/><rect x="40" y="360" width="65" height="60" rx="10"/><rect x="132" y="360" width="65" height="60" rx="10"/><rect x="224" y="360" width="65" height="60" rx="10"/></g>
+ <rect x="40" y="450" width="250" height="32" rx="10" fill="#176c73"/>
+</g>
+<!-- small sprig -->
+<g transform="translate(3450 220)" stroke="#6f8061" stroke-width="13" fill="#b9c29b">
+ <path d="M0 480Q-30 210 150 0" fill="none"/>
+ <ellipse cx="70" cy="120" rx="85" ry="32" transform="rotate(-35 70 120)"/>
+ <ellipse cx="-10" cy="255" rx="80" ry="30" transform="rotate(35 -10 255)"/>
+ <ellipse cx="140" cy="350" rx="90" ry="32" transform="rotate(-30 140 350)"/>
+</g>
+</svg>
