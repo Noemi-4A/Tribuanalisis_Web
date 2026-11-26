@@ -9,9 +9,18 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-La aplicación abre `http://127.0.0.1:5000/`. Los datos persistentes se guardan en `instance/tribuanalisis.db`; los documentos se almacenan como contenido binario en SQLite. Define `TRIBUANALISIS_DB` o `TRIBUANALISIS_INSTANCE` para usar otra ubicación. Para conservar sesiones entre reinicios, configura una clave privada estable en `TRIBUANALISIS_SECRET_KEY`.
+La aplicación abre `http://127.0.0.1:5000/`. Sin una URL PostgreSQL, los datos se guardan localmente en `instance/tribuanalisis.db` y los documentos como contenido binario en SQLite. Define `TRIBUANALISIS_DB` o `TRIBUANALISIS_INSTANCE` para cambiar la ubicación. Para conservar sesiones entre reinicios, configura una clave privada estable en `TRIBUANALISIS_SECRET_KEY`.
 
-En Vercel, la aplicación usa `/tmp/tribuanalisis` para evitar escribir en el directorio de solo lectura del despliegue. Ese directorio es temporal y puede desaparecer o no compartirse entre instancias; SQLite, sesiones de archivos y lotes almacenados allí no son persistentes. Para uso real en línea, conecta una base de datos y almacenamiento persistentes antes de registrar información importante.
+## Supabase y Vercel
+
+En Vercel, configura estas variables en **Project → Settings → Environment Variables** para Production, Preview y Development:
+
+- `SUPABASE_DB_URL`: cadena de conexión PostgreSQL de Supabase. Se recomienda la conexión **Transaction pooler** para funciones serverless. No la publiques ni la subas a GitHub.
+- `TRIBUANALISIS_SECRET_KEY`: una clave aleatoria privada, estable entre despliegues e instancias. Sin ambas variables, la aplicación falla explícitamente al iniciar en Vercel; no guarda datos en SQLite temporal como alternativa.
+
+La aplicación crea el esquema privado `tribuanalisis` y sus tablas al iniciar. En Supabase, consulta las cuentas en **Table Editor → schema `tribuanalisis` → `users`**. Las contraseñas se guardan como hashes. El esquema no necesita exponerse mediante la API REST de Supabase: la conexión es directa desde Flask. La URL y la clave deben guardarse solo como variables de entorno de Vercel.
+
+Las cuentas nuevas y los datos guardados después de configurar PostgreSQL quedan persistidos en Supabase. No se migran automáticamente cuentas ni registros de una base SQLite anterior; no subas `instance/tribuanalisis.db` a GitHub. Los documentos adjuntos se guardan como BLOB en PostgreSQL. El archivo Excel de origen de cada importación se mantiene como archivo temporal en `/tmp/tribuanalisis` en Vercel; las operaciones importadas y sus matrices sí se guardan en PostgreSQL.
 
 ## Funcionalidad
 
@@ -29,7 +38,7 @@ La plantilla descargable se conserva en `plantillas_excel/Tribuanalisis_Plantill
 
 Las ilustraciones temáticas de la página **Guía y normativa** están en `assets/images/normativa/`; cada archivo SVG se usa únicamente en su criterio correspondiente. Se pueden agregar allí nuevos recursos visuales y enlazarlos desde esa sección.
 
-Cada Excel importado se archiva de forma privada en `instance/casos_prueba/<id_usuario>/` y se vincula con su lote. Desde **Historial de análisis** se puede eliminar un gasto, un lote importado o todos los gastos; eliminar el historial conserva las empresas y los comprobantes independientes.
+Cada Excel importado se archiva de forma privada en `instance/casos_prueba/<id_usuario>/` localmente (en Vercel, bajo `/tmp/tribuanalisis/casos_prueba/`) y se vincula con su lote. Desde **Historial de análisis** se puede eliminar un gasto, un lote importado o todos los gastos; eliminar el historial conserva las empresas y los comprobantes independientes.
 
 ## Extracción y consulta de RUC
 

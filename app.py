@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Timer
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import webbrowser
 from defusedxml import ElementTree as ET
@@ -26,6 +26,14 @@ from sire_import import parse_purchase_workbook
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "plantillas_excel"
+IS_VERCEL = os.environ.get("VERCEL") == "1"
+SUPABASE_DATABASE_URL = (
+    os.environ.get("SUPABASE_DB_URL")
+    or os.environ.get("DATABASE_URL")
+    or os.environ.get("POSTGRES_URL")
+)
+
+
 def _get_instance_dir():
     if os.environ.get("VERCEL") == "1":
         return Path("/tmp/tribuanalisis")
@@ -35,24 +43,54 @@ def _get_instance_dir():
     return BASE_DIR / "instance"
 
 
-IS_VERCEL = os.environ.get("VERCEL") == "1"
 INSTANCE_DIR = _get_instance_dir()
-if IS_VERCEL:
-    DATABASE_PATH = INSTANCE_DIR / "tribuanalisis.db"
+if SUPABASE_DATABASE_URL:
+    DATABASE_PATH = None
     UPLOAD_DIR = INSTANCE_DIR / "uploads"
+elif IS_VERCEL:
+    raise RuntimeError(
+        "Configura SUPABASE_DB_URL en Vercel para usar almacenamiento persistente."
+    )
 else:
-    DATABASE_PATH = Path(os.environ.get("TRIBUANALISIS_DB", INSTANCE_DIR / "tribuanalisis.db"))
+    DATABASE_PATH = INSTANCE_DIR / "tribuanalisis.db"
+    DATABASE_PATH = Path(os.environ.get("TRIBUANALISIS_DB", DATABASE_PATH))
     UPLOAD_DIR = Path(os.environ.get("TRIBUANALISIS_UPLOAD_DIR", INSTANCE_DIR / "uploads"))
 CASE_BATCH_DIR = INSTANCE_DIR / "casos_prueba"
-INSTANCE_DIR.mkdir(parents=True, exist_ok=True)
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-CASE_BATCH_DIR.mkdir(parents=True, exist_ok=True)
+if not SUPABASE_DATABASE_URL:
+    INSTANCE_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    CASE_BATCH_DIR.mkdir(parents=True, exist_ok=True)
+
+SECRET_KEY = os.environ.get("TRIBUANALISIS_SECRET_KEY")
+if IS_VERCEL and not SECRET_KEY:
+    raise RuntimeError(
+        "Configura TRIBUANALISIS_SECRET_KEY en Vercel para conservar las sesiones."
+    )
+
+if SUPABASE_DATABASE_URL:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as error:
+        raise RuntimeError(
+            "Instala psycopg para conectar Tribuanálisis con Supabase PostgreSQL."
+        ) from error
+    DatabaseError = psycopg.Error
+    DatabaseIntegrityError = psycopg.IntegrityError
+else:
+    psycopg = None
+    dict_row = None
+    DatabaseError = sqlite3.Error
+    DatabaseIntegrityError = sqlite3.IntegrityError
+
+
 app = Flask(__name__)
-app.secret_key = os.environ.get("TRIBUANALISIS_SECRET_KEY") or os.urandom(32)
+app.secret_key = SECRET_KEY or os.urandom(32)
 app.config.update(
     MAX_CONTENT_LENGTH=25 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=IS_VERCEL,
 )
 
 ALLOWED_EXTENSIONS = {
@@ -71,7 +109,50 @@ ALLOWED_EXTENSIONS = {
     ".xlsx",
 }
 
+class PostgresConnection:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, query, parameters=()):
+        return self.connection.execute(query.replace("?", "%s"), parameters)
+
+    def __getattr__(self, name):
+        return getattr(self.connection, name)
+
+
+def _postgres_dsn(database_url):
+    parts = urlsplit(database_url)
+    query = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key.lower() not in {"pgbouncer", "workaround"}
+    ]
+    if not any(key.lower() == "sslmode" for key, _ in query):
+        query.append(("sslmode", "require"))
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+@contextmanager
 def db():
+    if SUPABASE_DATABASE_URL:
+        raw_connection = psycopg.connect(
+            _postgres_dsn(SUPABASE_DATABASE_URL),
+            row_factory=dict_row,
+            prepare_threshold=None,
+            connect_timeout=10,
+        )
+        connection = PostgresConnection(raw_connection)
+        try:
+            connection.execute("SET search_path TO tribuanalisis")
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+        return
+
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
     try:
@@ -86,10 +167,76 @@ def db():
 
 @contextmanager
 def database():
-    yield from db()
+    with db() as connection:
+        yield connection
 
 
 def init_db():
+    if SUPABASE_DATABASE_URL:
+        with database() as connection:
+            connection.execute("CREATE SCHEMA IF NOT EXISTS tribuanalisis")
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS users(
+                    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    email TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS workspaces(
+                    user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                    profile_json TEXT NOT NULL DEFAULT '{}',
+                    empresa_json TEXT NOT NULL DEFAULT '{}',
+                    fin_json TEXT NOT NULL DEFAULT '{}',
+                    receipts_json TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS companies(
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    ruc TEXT NOT NULL,
+                    name TEXT NOT NULL DEFAULT '',
+                    activity TEXT NOT NULL DEFAULT '',
+                    data_json TEXT NOT NULL DEFAULT '{}',
+                    PRIMARY KEY(user_id, ruc)
+                )
+            """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS expenses(
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    expense_id TEXT NOT NULL,
+                    company_ruc TEXT NOT NULL DEFAULT '',
+                    issue_date TEXT NOT NULL DEFAULT '',
+                    amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    classification TEXT NOT NULL,
+                    data_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(user_id, expense_id)
+                )
+            """)
+            connection.execute("""
+                CREATE INDEX IF NOT EXISTS idx_expenses_company_period
+                ON expenses(user_id, company_ruc, issue_date)
+            """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS documents(
+                    id TEXT PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    company_ruc TEXT NOT NULL DEFAULT '',
+                    expense_id TEXT,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    content BYTEA NOT NULL,
+                    extracted_text TEXT NOT NULL DEFAULT '',
+                    extracted_json TEXT NOT NULL DEFAULT '{}',
+                    uploaded_at TEXT NOT NULL
+                )
+            """)
+        return
+
     with database() as connection:
         connection.executescript("""
             PRAGMA foreign_keys = ON;
@@ -386,16 +533,16 @@ def register():
     try:
         with database() as connection:
             cursor = connection.execute(
-                "INSERT INTO users(email,name,password_hash,created_at) VALUES(?,?,?,?)",
+                "INSERT INTO users(email,name,password_hash,created_at) VALUES(?,?,?,?) RETURNING id",
                 (email, name, generate_password_hash(password),
                  datetime.now(timezone.utc).isoformat(timespec="seconds")),
             )
-            user_id = cursor.lastrowid
+            user_id = cursor.fetchone()["id"]
             connection.execute(
                 "INSERT INTO workspaces(user_id,profile_json,updated_at) VALUES(?,?,?)",
                 (user_id, json.dumps({"name": name, "email": email}), datetime.now(timezone.utc).isoformat(timespec="seconds")),
             )
-    except sqlite3.IntegrityError:
+    except DatabaseIntegrityError:
         return jsonify(error="Ya existe una cuenta con ese correo."), 409
     session.clear()
     session["user_id"] = user_id
@@ -672,7 +819,7 @@ def save_workspace():
                         (user_id, company_ruc, name, str(item.get("empresaActividad") or ""),
                          json.dumps({"name": name, "activity": item.get("empresaActividad", "")}, ensure_ascii=False)),
                     )
-    except (sqlite3.Error, ValueError, TypeError):
+    except (DatabaseError, ValueError, TypeError):
         app.logger.exception("No se pudo guardar el espacio de trabajo.")
         return jsonify(error="No se pudo guardar la información en la base de datos."), 500
     return jsonify(ok=True, cases=processed)
@@ -767,7 +914,7 @@ def delete_expense_batch(batch_id):
                     for row in remaining
                 ):
                     _remove_batch_file(user_id, batch_id)
-    except (sqlite3.Error, OSError, ValueError):
+    except (DatabaseError, OSError, ValueError):
         app.logger.exception("No se pudo eliminar el lote de gastos.")
         return jsonify(error="No se pudo completar la eliminación del lote."), 500
     return jsonify(ok=True, deleted=len(expense_ids))
@@ -795,7 +942,7 @@ def delete_all_expenses():
             connection.execute("DELETE FROM expenses WHERE user_id=?", (user_id,))
             for batch_id in batch_ids:
                 _remove_batch_file(user_id, batch_id)
-    except (sqlite3.Error, OSError, ValueError):
+    except (DatabaseError, OSError, ValueError):
         app.logger.exception("No se pudo eliminar el historial de gastos.")
         return jsonify(error="No se pudo completar la eliminación del historial."), 500
     return jsonify(ok=True, deleted=len(rows))
@@ -833,7 +980,7 @@ def delete_expense(expense_id):
                     for item in remaining
                 ):
                     _remove_batch_file(user_id, batch_id)
-    except (sqlite3.Error, OSError, ValueError):
+    except (DatabaseError, OSError, ValueError):
         app.logger.exception("No se pudo eliminar el gasto.")
         return jsonify(error="No se pudo completar la eliminación del gasto."), 500
     return jsonify(ok=True)
@@ -931,7 +1078,7 @@ def save_document():
             """INSERT INTO documents(id,user_id,company_ruc,expense_id,filename,content_type,
                content,extracted_text,extracted_json,uploaded_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
             (document_id, user_id, company_ruc, expense_id or None, filename,
-             uploaded.mimetype or "application/octet-stream", sqlite3.Binary(content),
+             uploaded.mimetype or "application/octet-stream", content,
              text[:100000], json.dumps(extracted, ensure_ascii=False), timestamp),
         )
     return jsonify(
